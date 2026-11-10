@@ -34,6 +34,10 @@ final class Workout {
     @Relationship(deleteRule: .cascade, inverse: \Exercise.workout)
     var exercises: [Exercise] = []
 
+    /// Sessions started from this workout. Logs outlive the workout if it's deleted.
+    @Relationship(deleteRule: .nullify, inverse: \WorkoutLog.workout)
+    var logs: [WorkoutLog] = []
+
     init(name: String, order: Int, weekdays: [Int] = []) {
         self.name = name
         self.order = order
@@ -50,14 +54,21 @@ final class Workout {
 final class Exercise {
     var name: String
     var order: Int
+    /// Rest goal between sets, in seconds.
+    var restSeconds: Int = 90
+    var notes: String = ""
     var workout: Workout?
 
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSet.exercise)
     var sets: [ExerciseSet] = []
 
-    init(name: String, order: Int) {
+    @Relationship(deleteRule: .nullify, inverse: \LoggedExercise.template)
+    var loggedExercises: [LoggedExercise] = []
+
+    init(name: String, order: Int, restSeconds: Int = 90) {
         self.name = name
         self.order = order
+        self.restSeconds = restSeconds
     }
 
     var sortedSets: [ExerciseSet] {
@@ -65,24 +76,28 @@ final class Exercise {
     }
 }
 
-/// A single set. `weight` and `reps` always hold the most recently used values,
-/// so they pre-fill the next time the workout is started.
+/// A planned set. `weight` and `reps` hold the most recently performed values,
+/// so they pre-fill the next session; `targetReps` is the goal used for overload hints.
 @Model
 final class ExerciseSet {
     var order: Int
     var weight: Double
     var reps: Int
+    var targetReps: Int = 10
+    var isWarmup: Bool = false
     var exercise: Exercise?
 
-    init(order: Int, weight: Double = 0, reps: Int = 10) {
+    init(order: Int, weight: Double = 0, reps: Int = 10, targetReps: Int = 10, isWarmup: Bool = false) {
         self.order = order
         self.weight = weight
         self.reps = reps
+        self.targetReps = targetReps
+        self.isWarmup = isWarmup
     }
 }
 
 /// Helpers for working with `Calendar` weekday numbers.
-enum Weekday {
+nonisolated enum Weekday {
     static var today: Int {
         Calendar.current.component(.weekday, from: .now)
     }
@@ -105,5 +120,12 @@ enum Weekday {
     static func summary(for weekdays: [Int]) -> String {
         let names = ordered.filter(weekdays.contains).map(shortName)
         return names.isEmpty ? "Not scheduled" : names.joined(separator: ", ")
+    }
+}
+
+extension Int {
+    /// Formats a number of seconds as "1:30".
+    var restFormatted: String {
+        Duration.seconds(self).formatted(.time(pattern: .minuteSecond))
     }
 }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Daily nutrition goals and app-wide units.
+/// App settings: daily nutrition goals, units, and training defaults.
 struct GoalsView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -9,6 +9,8 @@ struct GoalsView: View {
     @AppStorage(SettingsKey.carbsGoal) private var carbsGoal = 200.0
     @AppStorage(SettingsKey.fatGoal) private var fatGoal = 65.0
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
+    @AppStorage(SettingsKey.weightIncrement) private var weightIncrement = 5.0
+    @AppStorage(SettingsKey.defaultRestSeconds) private var defaultRestSeconds = 90
 
     var body: some View {
         NavigationStack {
@@ -26,8 +28,21 @@ struct GoalsView: View {
                         Text("Kilograms (kg)").tag("kg")
                     }
                 }
+
+                Section {
+                    RestPicker(title: "Default rest", seconds: $defaultRestSeconds)
+                    NumberFieldRow(title: "Weight increase", value: $weightIncrement, unit: weightUnit)
+                } header: {
+                    Text("Training")
+                } footer: {
+                    Text("Default rest applies to custom exercises. When you hit every target rep, the next workout suggests adding the weight increase.")
+                }
             }
-            .navigationTitle("Goals")
+            .onChange(of: weightUnit) { _, newUnit in
+                // Switch to a sensible step for the new unit.
+                weightIncrement = newUnit == "kg" ? 2.5 : 5
+            }
+            .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

@@ -8,6 +8,7 @@ struct WorkoutsView: View {
 
     @State private var isAddingPlan = false
     @State private var newPlanName = ""
+    @State private var isShowingSettings = false
 
     private var todaysWorkouts: [Workout] {
         plans.flatMap(\.sortedWorkouts).filter { $0.weekdays.contains(Weekday.today) }
@@ -18,7 +19,7 @@ struct WorkoutsView: View {
             List {
                 Section("Today · \(Weekday.shortName(Weekday.today))") {
                     if todaysWorkouts.isEmpty {
-                        Text("Nothing scheduled today.")
+                        Label("Rest day. Nothing scheduled.", systemImage: "bed.double")
                             .foregroundStyle(.secondary)
                     }
                     ForEach(todaysWorkouts) { workout in
@@ -43,8 +44,15 @@ struct WorkoutsView: View {
                     .onDelete(perform: deletePlans)
 
                     if plans.isEmpty {
-                        Button("Create your first plan", systemImage: "plus") {
-                            isAddingPlan = true
+                        ContentUnavailableView {
+                            Label("No Plans Yet", systemImage: "list.bullet.clipboard")
+                        } description: {
+                            Text("Create a plan, add workouts, and pick the days you train.")
+                        } actions: {
+                            Button("Create a Plan") {
+                                isAddingPlan = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
                     }
                 }
@@ -60,9 +68,19 @@ struct WorkoutsView: View {
                 ExerciseEditorView(exercise: exercise)
             }
             .toolbar {
-                Button("New Plan", systemImage: "plus") {
-                    isAddingPlan = true
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Settings", systemImage: "gearshape") {
+                        isShowingSettings = true
+                    }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("New Plan", systemImage: "plus") {
+                        isAddingPlan = true
+                    }
+                }
+            }
+            .sheet(isPresented: $isShowingSettings) {
+                GoalsView()
             }
             .alert("New Plan", isPresented: $isAddingPlan) {
                 TextField("Plan name", text: $newPlanName)

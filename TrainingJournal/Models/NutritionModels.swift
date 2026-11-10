@@ -63,6 +63,10 @@ enum SettingsKey {
     static let proteinGoal = "proteinGoal"
     static let carbsGoal = "carbsGoal"
     static let fatGoal = "fatGoal"
+    /// How much weight the overload hint suggests adding (5 lb / 2.5 kg by default).
+    static let weightIncrement = "weightIncrement"
+    /// Rest goal for new custom exercises, in seconds.
+    static let defaultRestSeconds = "defaultRestSeconds"
 }
 
 extension Double {

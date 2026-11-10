@@ -7,29 +7,39 @@ struct WorkoutDetailView: View {
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
     @Bindable var workout: Workout
 
-    @State private var isRunning = false
+    @Query(filter: #Predicate<WorkoutLog> { $0.endDate == nil })
+    private var activeLogs: [WorkoutLog]
+
     @State private var isAddingExercise = false
-    @State private var newExerciseName = ""
 
     var body: some View {
         List {
             Section {
                 Button {
-                    isRunning = true
+                    start()
                 } label: {
                     Label("Start Workout", systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
                         .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 34)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(workout.exercises.isEmpty)
+                .disabled(workout.exercises.isEmpty || !activeLogs.isEmpty)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
 
-                if let lastCompleted = workout.lastCompleted {
-                    Text("Last completed \(lastCompleted, format: .relative(presentation: .named))")
+                if !activeLogs.isEmpty {
+                    Label("Finish your current workout before starting another.", systemImage: "info.circle")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                } else if let lastCompleted = workout.lastCompleted {
+                    Label {
+                        Text("Last done \(lastCompleted, format: .relative(presentation: .named))")
+                    } icon: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -42,13 +52,25 @@ struct WorkoutDetailView: View {
             }
 
             Section("Exercises") {
+                if workout.exercises.isEmpty {
+                    ContentUnavailableView {
+                        Label("No Exercises", systemImage: "dumbbell")
+                    } description: {
+                        Text("Add exercises to build this workout.")
+                    }
+                }
+
                 ForEach(workout.sortedExercises) { exercise in
                     NavigationLink(value: exercise) {
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(exercise.name)
+                                .font(.headline)
                             Text(setsSummary(for: exercise))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            Label(exercise.restSeconds.restFormatted, systemImage: "timer")
+                                .font(.caption)
+                                .foregroundStyle(.tint)
                         }
                     }
                 }
@@ -61,45 +83,49 @@ struct WorkoutDetailView: View {
             }
         }
         .navigationTitle(workout.name)
-        #if os(iOS) || os(visionOS)
         .toolbar {
             EditButton()
         }
-        #endif
-        .alert("New Exercise", isPresented: $isAddingExercise) {
-            TextField("e.g. Bench Press", text: $newExerciseName)
-            Button("Cancel", role: .cancel) {
-                newExerciseName = ""
-            }
-            Button("Add") {
-                addExercise()
+        .sheet(isPresented: $isAddingExercise) {
+            ExercisePickerView { name, rest in
+                addExercise(named: name, restSeconds: rest)
             }
         }
-        .sheet(isPresented: $isRunning) {
-            ActiveWorkoutView(workout: workout)
+    }
+
+    private func start() {
+        Task {
+            await RestTimer.requestNotificationPermission()
         }
+        // ContentView presents the live workout as soon as the in-progress log appears.
+        WorkoutSession.start(workout, in: modelContext)
     }
 
     private func setsSummary(for exercise: Exercise) -> String {
         let sets = exercise.sortedSets
         guard !sets.isEmpty else { return "No sets" }
-        return sets.map { "\($0.weight.shortFormatted)\(weightUnit) × \($0.reps)" }
+        let working = sets.filter { !$0.isWarmup }
+        let warmups = sets.count - working.count
+        var text = working.map { "\($0.weight.shortFormatted)\(weightUnit) × \($0.targetReps)" }
             .joined(separator: ", ")
+        if warmups > 0 {
+            text = "\(warmups)W · " + text
+        }
+        return text
     }
 
-    private func addExercise() {
-        let name = newExerciseName.trimmingCharacters(in: .whitespaces)
+    private func addExercise(named name: String, restSeconds: Int) {
         let nextOrder = (workout.exercises.map(\.order).max() ?? -1) + 1
-        let exercise = Exercise(name: name.isEmpty ? "New Exercise" : name, order: nextOrder)
+        let exercise = Exercise(name: name, order: nextOrder, restSeconds: restSeconds)
         // Start with three sets so the exercise is immediately usable.
         exercise.sets = (0..<3).map { ExerciseSet(order: $0) }
         workout.exercises.append(exercise)
-        newExerciseName = ""
     }
 
     private func deleteExercises(at offsets: IndexSet) {
         let sorted = workout.sortedExercises
         for index in offsets {
+            workout.exercises.removeAll { $0 === sorted[index] }
             modelContext.delete(sorted[index])
         }
     }
@@ -130,11 +156,12 @@ struct WeekdayPicker: View {
                 } label: {
                     Text(Weekday.veryShortName(day))
                         .font(.subheadline.bold())
-                        .frame(width: 36, height: 36)
-                        .background(isSelected ? Color.accentColor : Color.secondary.opacity(0.15), in: .circle)
+                        .frame(width: 38, height: 38)
+                        .background(isSelected ? Color.accentColor : Color(.tertiarySystemFill), in: .circle)
                         .foregroundStyle(isSelected ? .white : .primary)
                 }
                 .buttonStyle(.plain)
+                .sensoryFeedback(.selection, trigger: isSelected)
                 .accessibilityLabel(Weekday.shortName(day))
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
                 if day != Weekday.ordered.last {

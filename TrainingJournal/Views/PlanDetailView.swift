@@ -30,11 +30,9 @@ struct PlanDetailView: View {
             }
         }
         .navigationTitle(plan.name)
-        #if os(iOS) || os(visionOS)
         .toolbar {
             EditButton()
         }
-        #endif
         .alert("New Workout", isPresented: $isAddingWorkout) {
             TextField("e.g. Push Day", text: $newWorkoutName)
             Button("Cancel", role: .cancel) {

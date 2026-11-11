@@ -41,8 +41,16 @@ final class RestTimer {
             state = saved
         }
         activity = Activity<RestTimerAttributes>.activities.first
-        scheduleAlarm()
+        // A rest that ended long ago (e.g. the app was closed mid-rest) isn't useful to show.
+        if let state, Date.now.timeIntervalSince(state.goalDate) > Self.staleAfter {
+            stop()
+        } else {
+            scheduleAlarm()
+        }
     }
+
+    /// How long past its goal a rest is kept around before it's cleared.
+    private static let staleAfter: TimeInterval = 10 * 60
 
     var isRunning: Bool { state != nil }
 

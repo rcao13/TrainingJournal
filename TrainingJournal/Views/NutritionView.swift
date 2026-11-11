@@ -10,6 +10,7 @@ struct NutritionView: View {
     var body: some View {
         NavigationStack {
             DayNutritionList(selectedDate: $selectedDate)
+                .themedBackground()
                 .navigationTitle("Nutrition")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -69,9 +70,10 @@ private struct DayNutritionList: View {
 
             Section("Summary") {
                 CalorieSummary(eaten: totalCalories, goal: calorieGoal)
-                MacroProgressRow(title: "Protein", value: totalProtein, goal: proteinGoal, color: .blue)
-                MacroProgressRow(title: "Carbs", value: totalCarbs, goal: carbsGoal, color: .orange)
-                MacroProgressRow(title: "Fat", value: totalFat, goal: fatGoal, color: .pink)
+                // Each bar is labelled, so they share the accent rather than competing hues.
+                MacroProgressRow(title: "Protein", value: totalProtein, goal: proteinGoal, color: .accentColor)
+                MacroProgressRow(title: "Carbs", value: totalCarbs, goal: carbsGoal, color: .accentColor)
+                MacroProgressRow(title: "Fat", value: totalFat, goal: fatGoal, color: .accentColor)
             }
 
             ForEach(Meal.allCases) { meal in
@@ -148,7 +150,7 @@ private struct CalorieSummary: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading) {
                     Text(eaten.formatted(.number.precision(.fractionLength(0))))
-                        .font(.largeTitle.bold())
+                        .font(.numeral(40))
                     Text("kcal eaten")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -156,7 +158,7 @@ private struct CalorieSummary: View {
                 Spacer()
                 VStack(alignment: .trailing) {
                     Text(abs(remaining).formatted(.number.precision(.fractionLength(0))))
-                        .font(.title2.bold())
+                        .font(.numeral(24))
                         .foregroundStyle(remaining >= 0 ? Color.primary : Color.red)
                     Text(remaining >= 0 ? "remaining" : "over goal")
                         .font(.caption)
@@ -164,7 +166,7 @@ private struct CalorieSummary: View {
                 }
             }
             ProgressView(value: min(eaten, goal), total: max(goal, 1))
-                .tint(remaining >= 0 ? .green : .red)
+                .tint(remaining >= 0 ? Color.accentColor : .red)
         }
         .padding(.vertical, 4)
     }

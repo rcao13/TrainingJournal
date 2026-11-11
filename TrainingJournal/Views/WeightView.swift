@@ -17,23 +17,38 @@ struct WeightView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Current")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("\(latest.weight.shortFormatted) \(weightUnit)")
-                                .font(.largeTitle.bold())
+                                .foregroundStyle(Theme.secondary)
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(latest.weight.shortFormatted)
+                                    .font(.numeral(48))
+                                    .foregroundStyle(Theme.ink)
+                                Text(weightUnit)
+                                    .font(.title3)
+                                    .foregroundStyle(Theme.secondary)
+                            }
                             if let first = entries.last, entries.count > 1 {
                                 Text("\(changeText(latest.weight - first.weight)) since \(first.date.formatted(date: .abbreviated, time: .omitted))")
                                     .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Theme.secondary)
                             }
                         }
                         .padding(.vertical, 4)
                     }
+                    .themedRow()
                 }
 
                 Section("History") {
                     if entries.isEmpty {
-                        Text("No weigh-ins yet. Tap + to log your weight.")
-                            .foregroundStyle(.secondary)
+                        ContentUnavailableView {
+                            Label("No Weigh-ins Yet", systemImage: "scalemass")
+                        } description: {
+                            Text("Log your weight to track the trend over time.")
+                        } actions: {
+                            Button("Log Weight") {
+                                isAdding = true
+                            }
+                            .buttonStyle(PillButtonStyle())
+                        }
                     }
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         HStack {
@@ -51,7 +66,9 @@ struct WeightView: View {
                     }
                     .onDelete(perform: deleteEntries)
                 }
+                .themedRow()
             }
+            .themedBackground()
             .navigationTitle("Weight")
             .toolbar {
                 Button("Log Weight", systemImage: "plus") {
@@ -76,7 +93,8 @@ struct WeightView: View {
     }
 }
 
-private struct AddWeightView: View {
+/// Sheet for logging a weigh-in. Also opened from the Today tab.
+struct AddWeightView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
@@ -92,6 +110,7 @@ private struct AddWeightView: View {
                 NumberFieldRow(title: "Weight", value: $weight, unit: weightUnit)
                 DatePicker("Date", selection: $date, in: ...Date.now)
             }
+            .themedBackground()
             .navigationTitle("Log Weight")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

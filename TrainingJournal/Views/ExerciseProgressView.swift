@@ -99,6 +99,7 @@ struct ExerciseProgressView: View {
                 }
             }
         }
+        .themedBackground()
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: metric) {

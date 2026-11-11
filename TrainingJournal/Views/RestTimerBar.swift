@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The pinned rest timer shown during a workout. Counts up from the end of the last set,
-/// fills a bar toward the goal, and turns green once the goal is reached.
+/// The rest card pinned above the Complete Set button. Counts up from the last completed set,
+/// fills a ring toward the goal, and switches to the "ready" colour once the goal is reached.
 struct RestTimerBar: View {
     @Environment(RestTimer.self) private var restTimer
 
@@ -14,56 +14,44 @@ struct RestTimerBar: View {
                 let elapsed = max(0, context.date.timeIntervalSince(state.startDate))
                 let goal = Double(state.goalSeconds)
                 let isDone = elapsed >= goal
-                let tint: Color = isDone ? .green : .accentColor
+                let tint: Color = isDone ? Theme.ready : .accentColor
 
-                VStack(spacing: 10) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(isDone ? "Rest goal reached" : "Resting")
-                                .font(.caption.bold())
-                                .foregroundStyle(tint)
-                            Text("\(state.exerciseName) · \(state.setLabel)")
-                                .font(.subheadline)
-                                .lineLimit(1)
+                HStack(spacing: 14) {
+                    ProgressRing(progress: elapsed / max(goal, 1), color: tint, lineWidth: 5)
+                        .frame(width: 52, height: 52)
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Kept short so it never truncates beside the buttons.
+                        Text(isDone ? "Ready" : "Resting")
+                            .font(.footnote.weight(isDone ? .semibold : .regular))
+                            .foregroundStyle(isDone ? tint : Theme.secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(elapsed.workoutDurationFormatted)
+                                .font(.numeral(32))
+                                .foregroundStyle(Theme.ink)
+                                .contentTransition(.numericText())
+                            Text("of \(state.goalSeconds.restFormatted)")
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(Theme.secondary)
                         }
-                        Spacer()
-                        Text(elapsed.workoutDurationFormatted)
-                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
-                            .contentTransition(.numericText())
                     }
 
-                    ProgressView(value: min(elapsed, goal), total: max(goal, 1))
-                        .tint(tint)
+                    Spacer(minLength: 4)
 
-                    HStack {
-                        Button("−15s") {
-                            adjust(by: -15, state: state)
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            Button("−15") { adjust(by: -15, state: state) }
+                                .accessibilityLabel("Shorten rest by 15 seconds")
+                            Button("+15") { adjust(by: 15, state: state) }
+                                .accessibilityLabel("Lengthen rest by 15 seconds")
                         }
-                        Text("Goal \(state.goalSeconds.restFormatted)")
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(minWidth: 80)
-                        Button("+15s") {
-                            adjust(by: 15, state: state)
-                        }
-                        Spacer()
-                        Button("Skip", systemImage: "forward.end.fill") {
-                            restTimer.stop()
-                        }
-                        .labelStyle(.titleAndIcon)
+                        Button("Skip") { restTimer.stop() }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(PillButtonStyle())
                 }
-                .padding()
-                .background(.regularMaterial, in: .rect(cornerRadius: 22))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22)
-                        .strokeBorder(tint.opacity(0.4), lineWidth: 1)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 4)
+                .appCard(padding: 14)
                 .accessibilityElement(children: .contain)
+                .accessibilityLabel("Rest timer for \(state.exerciseName)")
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }

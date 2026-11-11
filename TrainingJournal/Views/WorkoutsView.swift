@@ -57,6 +57,7 @@ struct WorkoutsView: View {
                     }
                 }
             }
+            .themedBackground()
             .navigationTitle("Workouts")
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(plan: plan)

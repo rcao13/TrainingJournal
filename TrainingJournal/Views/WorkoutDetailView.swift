@@ -19,27 +19,21 @@ struct WorkoutDetailView: View {
                     start()
                 } label: {
                     Label("Start Workout", systemImage: "play.fill")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(workout.exercises.isEmpty || !activeLogs.isEmpty)
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
-
+            } footer: {
+                // Status sits under the button as plain text rather than in a card it would crowd.
                 if !activeLogs.isEmpty {
                     Label("Finish your current workout before starting another.", systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 } else if let lastCompleted = workout.lastCompleted {
                     Label {
                         Text("Last done \(lastCompleted, format: .relative(presentation: .named))")
                     } icon: {
                         Image(systemName: "clock.arrow.circlepath")
                     }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
                 }
             }
 
@@ -82,6 +76,7 @@ struct WorkoutDetailView: View {
                 }
             }
         }
+        .themedBackground()
         .navigationTitle(workout.name)
         .toolbar {
             EditButton()
@@ -106,7 +101,7 @@ struct WorkoutDetailView: View {
         guard !sets.isEmpty else { return "No sets" }
         let working = sets.filter { !$0.isWarmup }
         let warmups = sets.count - working.count
-        var text = working.map { "\($0.weight.shortFormatted)\(weightUnit) × \($0.targetReps)" }
+        var text = working.map { "\($0.weight.shortFormatted) \(weightUnit) × \($0.targetReps)" }
             .joined(separator: ", ")
         if warmups > 0 {
             text = "\(warmups)W · " + text

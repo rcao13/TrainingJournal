@@ -48,6 +48,7 @@ struct HistoryView: View {
                     exerciseSection
                 }
             }
+            .themedBackground()
             .navigationTitle("History")
             .navigationDestination(for: WorkoutLog.self) { log in
                 LogDetailView(log: log)
@@ -155,7 +156,7 @@ private struct LogRow: View {
                     .foregroundStyle(.secondary)
             }
             HStack(spacing: 14) {
-                Label(log.duration.workoutDurationFormatted, systemImage: "stopwatch")
+                Label(DayTimeline.durationText(log.duration), systemImage: "stopwatch")
                 Label("\(log.volume.formatted(.number.precision(.fractionLength(0)))) \(weightUnit)", systemImage: "scalemass")
                 Label("\(log.completedSets.count)", systemImage: "checkmark.circle")
             }
@@ -175,7 +176,7 @@ struct LogDetailView: View {
         List {
             Section {
                 HStack {
-                    StatTile(title: "Duration", value: log.duration.workoutDurationFormatted, systemImage: "stopwatch")
+                    StatTile(title: "Duration", value: DayTimeline.durationText(log.duration), systemImage: "stopwatch")
                     StatTile(title: "Volume", value: "\(log.volume.formatted(.number.precision(.fractionLength(0)))) \(weightUnit)", systemImage: "scalemass")
                     StatTile(title: "Sets", value: "\(log.completedSets.count)", systemImage: "checkmark.circle")
                 }
@@ -196,6 +197,7 @@ struct LogDetailView: View {
                 }
             }
         }
+        .themedBackground()
         .navigationTitle(log.workoutName)
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -17,6 +17,8 @@ struct FoodEntryForm: View {
     @State private var protein = 0.0
     @State private var carbs = 0.0
     @State private var fat = 0.0
+    /// Time of day the food was eaten; the date part comes from `day` (or the entry being edited).
+    @State private var time = Date.now
     @State private var hasLoaded = false
 
     /// Up to 10 recently logged foods with unique names, for quick re-entry.
@@ -39,6 +41,7 @@ struct FoodEntryForm: View {
                             Text(meal.title).tag(meal)
                         }
                     }
+                    DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
                 }
 
                 Section {
@@ -47,7 +50,8 @@ struct FoodEntryForm: View {
                     NumberFieldRow(title: "Carbs", value: $carbs, unit: "g")
                     NumberFieldRow(title: "Fat", value: $fat, unit: "g")
                 } footer: {
-                    if macroCalories > 0 {
+                    // Only offer it when it would actually change the calories.
+                    if macroCalories > 0 && abs(macroCalories.rounded() - calories) >= 1 {
                         Button("Use \(macroCalories.formatted(.number.precision(.fractionLength(0)))) kcal from macros") {
                             calories = macroCalories.rounded()
                         }
@@ -73,6 +77,7 @@ struct FoodEntryForm: View {
                     }
                 }
             }
+            .themedBackground()
             .navigationTitle(entry == nil ? "Add Food" : "Edit Food")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -97,8 +102,10 @@ struct FoodEntryForm: View {
         if let entry {
             fill(from: entry)
             meal = entry.meal
+            time = entry.date
         } else {
             meal = Self.suggestedMeal()
+            time = Self.logDate(for: day)
         }
     }
 
@@ -119,6 +126,7 @@ struct FoodEntryForm: View {
             entry.protein = protein
             entry.carbs = carbs
             entry.fat = fat
+            entry.date = Self.combine(day: entry.date, time: time)
         } else {
             modelContext.insert(FoodEntry(
                 name: trimmedName,
@@ -126,11 +134,18 @@ struct FoodEntryForm: View {
                 protein: protein,
                 carbs: carbs,
                 fat: fat,
-                date: Self.logDate(for: day),
+                date: Self.combine(day: day, time: time),
                 meal: meal
             ))
         }
         dismiss()
+    }
+
+    /// The calendar day of `day` at the hour and minute of `time`.
+    private static func combine(day: Date, time: Date) -> Date {
+        let calendar = Calendar.current
+        let parts = calendar.dateComponents([.hour, .minute], from: time)
+        return calendar.date(bySettingHour: parts.hour ?? 12, minute: parts.minute ?? 0, second: 0, of: day) ?? day
     }
 
     /// Uses the current time when logging today; otherwise noon on the chosen day.

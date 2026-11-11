@@ -29,6 +29,7 @@ struct PlanDetailView: View {
                 }
             }
         }
+        .themedBackground()
         .navigationTitle(plan.name)
         .toolbar {
             EditButton()

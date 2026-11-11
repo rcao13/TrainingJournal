@@ -30,17 +30,28 @@ struct NumberFieldRow: View {
     @Binding var value: Double
     var unit: String = ""
 
+    /// Shows an empty field (with a "0" placeholder) instead of a literal 0,
+    /// so typing doesn't append to a leftover zero.
+    private var editableValue: Binding<Double?> {
+        Binding(
+            get: { value == 0 ? nil : value },
+            set: { value = $0 ?? 0 }
+        )
+    }
+
     var body: some View {
         HStack {
             Text(title)
             Spacer()
-            TextField(title, value: $value, format: .number)
+            TextField(title, value: editableValue, format: .number, prompt: Text("0"))
                 .multilineTextAlignment(.trailing)
                 .decimalKeyboard()
                 .frame(maxWidth: 120)
             if !unit.isEmpty {
+                // Fixed width so values line up whatever the unit ("g" vs "kcal").
                 Text(unit)
                     .foregroundStyle(.secondary)
+                    .frame(width: 36, alignment: .leading)
             }
         }
     }
@@ -94,11 +105,11 @@ struct CompactIntField: View {
 private struct CompactFieldStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(.title3.weight(.semibold).monospacedDigit())
+            .font(.numeral(20))
             .multilineTextAlignment(.center)
             .padding(.vertical, 8)
             .padding(.horizontal, 6)
-            .background(Color(.tertiarySystemFill), in: .rect(cornerRadius: 10))
+            .background(Theme.track, in: .rect(cornerRadius: 12))
     }
 }
 
@@ -111,8 +122,8 @@ struct SetBadge: View {
         Text(label)
             .font(.subheadline.bold().monospacedDigit())
             .frame(width: 30, height: 30)
-            .background(isWarmup ? Color.yellow.opacity(0.25) : Color(.tertiarySystemFill), in: .circle)
-            .foregroundStyle(isWarmup ? Color.orange : Color.primary)
+            .background(isWarmup ? Color.accentColor.opacity(0.14) : Theme.track, in: .circle)
+            .foregroundStyle(isWarmup ? Color.accentColor : Theme.ink)
             .accessibilityLabel(isWarmup ? "Warm-up set" : "Set \(label)")
     }
 }
@@ -143,11 +154,12 @@ struct StatTile: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.secondary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
             Text(value)
-                .font(.title3.bold().monospacedDigit())
+                .font(.numeral(18))
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }

@@ -15,7 +15,8 @@ struct WorkoutSummaryView: View {
                 VStack(spacing: 12) {
                     Image(systemName: records.isEmpty ? "checkmark.seal.fill" : "trophy.fill")
                         .font(.system(size: 56))
-                        .foregroundStyle(records.isEmpty ? Color.green : Color.yellow)
+                        .foregroundStyle(records.isEmpty ? Theme.ready : Color.accentColor)
+                        .accentGlow(records.isEmpty ? Theme.ready : .accentColor)
                         .symbolEffect(.bounce, value: hasAppeared)
                     Text("Workout Complete")
                         .font(.title2.bold())
@@ -26,7 +27,7 @@ struct WorkoutSummaryView: View {
                 .padding(.vertical, 8)
 
                 HStack {
-                    StatTile(title: "Duration", value: log.duration.workoutDurationFormatted, systemImage: "stopwatch")
+                    StatTile(title: "Duration", value: DayTimeline.durationText(log.duration), systemImage: "stopwatch")
                     StatTile(title: "Volume", value: "\(log.volume.formatted(.number.precision(.fractionLength(0)))) \(weightUnit)", systemImage: "scalemass")
                     StatTile(title: "Sets", value: "\(log.completedSets.count)", systemImage: "checkmark.circle")
                 }
@@ -37,7 +38,7 @@ struct WorkoutSummaryView: View {
                     ForEach(records) { record in
                         HStack {
                             Image(systemName: "trophy.fill")
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(.tint)
                             VStack(alignment: .leading) {
                                 Text(record.exerciseName)
                                     .font(.headline)
@@ -59,13 +60,13 @@ struct WorkoutSummaryView: View {
                 }
             }
         }
+        .themedBackground()
         .navigationTitle("Summary")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done", action: onDone)
-                    .buttonStyle(.borderedProminent)
             }
         }
         .onAppear {

@@ -5,11 +5,12 @@ import WidgetKit
 /// Lock Screen and Dynamic Island presentation of the rest timer.
 /// The timer counts up from the start of the rest; the bar fills until the goal.
 /// The app sets the activity's stale date to the goal, so the system re-renders it
-/// then and these views switch to a green "Rest goal reached" state.
+/// then and these views switch to a mint "Rest goal reached" state.
 struct RestTimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RestTimerAttributes.self) { context in
             RestTimerLockScreenView(context: context)
+                .activityBackgroundTint(RestColors.background)
                 .activitySystemActionForegroundColor(restTint(for: context))
         } dynamicIsland: { context in
             let tint = restTint(for: context)
@@ -79,7 +80,7 @@ private struct RestTimerLockScreenView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(context.state.startDate, style: .timer)
-                        .font(.system(size: 40, weight: .bold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 40, weight: .semibold).monospacedDigit())
                         .multilineTextAlignment(.trailing)
                     Text("Goal \(goalText(context.state))")
                         .font(.caption)
@@ -102,6 +103,9 @@ private struct RestTimerLockScreenView: View {
             }
         }
         .padding()
+        // The card always uses the Midnight background, so render its text for dark.
+        .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -127,7 +131,15 @@ private func isGoalReached(_ context: ActivityViewContext<RestTimerAttributes>) 
 }
 
 private func restTint(for context: ActivityViewContext<RestTimerAttributes>) -> Color {
-    isGoalReached(context) ? .green : .orange
+    isGoalReached(context) ? RestColors.ready : RestColors.accent
+}
+
+/// Midnight palette, matching the app's dark mode. The widget target can't see the
+/// app's Theme, so the few colours it needs are repeated here.
+private enum RestColors {
+    static let accent = Color(red: 0x8D / 255, green: 0xA2 / 255, blue: 0xFF / 255)
+    static let ready = Color(red: 0x5E / 255, green: 0xD3 / 255, blue: 0xA8 / 255)
+    static let background = Color(red: 0x0E / 255, green: 0x10 / 255, blue: 0x14 / 255).opacity(0.92)
 }
 
 private func goalText(_ state: RestTimerAttributes.ContentState) -> String {

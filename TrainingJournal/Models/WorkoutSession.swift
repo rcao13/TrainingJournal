@@ -19,10 +19,15 @@ enum WorkoutSession {
             log.exercises.append(logged)
             // Only show "Last: …" once the exercise has actually been performed.
             let hasBeenLogged = exercise.loggedExercises.contains { $0.log?.isFinished == true }
+            // A planned set with no weight inherits the set before it, so a plan filled in
+            // only for set 1 still starts every working set at that weight.
+            var carriedWeight = 0.0
             for set in exercise.sortedSets {
+                let weight = set.weight > 0 || set.isWarmup ? set.weight : carriedWeight
+                if !set.isWarmup && weight > 0 { carriedWeight = weight }
                 logged.sets.append(LoggedSet(
                     order: set.order,
-                    weight: set.weight,
+                    weight: weight,
                     reps: set.reps,
                     targetReps: set.targetReps,
                     isWarmup: set.isWarmup,

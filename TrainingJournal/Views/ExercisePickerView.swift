@@ -64,6 +64,7 @@ struct ExercisePickerView: View {
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Search or type a custom name"
             )
+            .themedBackground()
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

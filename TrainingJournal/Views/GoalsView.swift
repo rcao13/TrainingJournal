@@ -42,6 +42,7 @@ struct GoalsView: View {
                 // Switch to a sensible step for the new unit.
                 weightIncrement = newUnit == "kg" ? 2.5 : 5
             }
+            .themedBackground()
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

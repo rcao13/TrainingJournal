@@ -48,6 +48,7 @@ struct ExerciseEditorView: View {
                 Text("Swipe right on a set to mark it as a warm-up. Weights update automatically after each workout.")
             }
         }
+        .themedBackground()
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
         .scrollDismissesKeyboard(.interactively)

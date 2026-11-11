@@ -13,6 +13,9 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
+            Tab("Today", systemImage: "calendar.day.timeline.left") {
+                TodayView()
+            }
             Tab("Workouts", systemImage: "dumbbell.fill") {
                 WorkoutsView()
             }

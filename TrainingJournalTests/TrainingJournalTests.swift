@@ -103,6 +103,17 @@ struct WorkoutSessionTests {
         #expect(nextBench.sortedSets.allSatisfy { $0.previousWeight == 135 && $0.previousReps == 8 })
     }
 
+    @Test func emptyPlannedWeightsInheritThePreviousSet() throws {
+        let context = try makeContext()
+        let workout = makeWorkout(in: context)
+        let bench = try #require(workout.sortedExercises.first)
+        bench.sortedSets[1].weight = 0
+        bench.sortedSets[2].weight = 0
+
+        let log = WorkoutSession.start(workout, in: context)
+        #expect(log.sortedExercises.first?.sortedSets.map(\.weight) == [135, 135, 135])
+    }
+
     @Test func finishCopiesAddedAndRemovedSetsBackToPlan() throws {
         let context = try makeContext()
         let workout = makeWorkout(in: context)
@@ -162,5 +173,115 @@ struct WorkoutSessionTests {
 
         let records = WorkoutSession.newRecords(in: second, comparedTo: [first, second])
         #expect(records.contains { $0.kind == .heaviestWeight && $0.value == 155 })
+    }
+}
+
+struct RecoveryTests {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    @Test func mapsCatalogAndCustomNames() {
+        #expect(Recovery.muscle(for: "Bench Press") == .chest)
+        #expect(Recovery.muscle(for: "romanian deadlift") == .legs)
+        #expect(Recovery.muscle(for: "Close-Grip Bench Press") == .arms)
+        // Keyword fallbacks for names that aren't in the catalog.
+        #expect(Recovery.muscle(for: "Seated Leg Curl") == .legs)
+        #expect(Recovery.muscle(for: "Cable Lateral Raise") == .shoulders)
+        #expect(Recovery.muscle(for: "Rope Tricep Extension") == .arms)
+        #expect(Recovery.muscle(for: "T-Bar Row") == .back)
+        #expect(Recovery.muscle(for: "Mystery Machine") == nil)
+    }
+
+    @Test func progressUsesTheMostRecentSession() {
+        let sessions = [
+            Recovery.Session(date: now.addingTimeInterval(-5 * 86_400), exerciseNames: ["Bench Press"]),
+            Recovery.Session(date: now.addingTimeInterval(-36 * 3600), exerciseNames: ["Bench Press", "Back Squat"]),
+        ]
+        let statuses = Recovery.statuses(for: sessions, now: now)
+        let chest = try? #require(statuses.first { $0.muscle == .chest })
+        #expect(chest?.progress == 0.5) // 36 of 72 hours
+        #expect(chest?.isReady == false)
+        #expect(chest.map(Recovery.remainingText(for:)) == "~36 h")
+        // Least recovered first.
+        #expect(statuses.map(\.progress) == statuses.map(\.progress).sorted())
+    }
+
+    @Test func readyAfterTheWindowAndOldSessionsDrop() {
+        let sessions = [
+            Recovery.Session(date: now.addingTimeInterval(-3 * 86_400), exerciseNames: ["Plank"]),
+            Recovery.Session(date: now.addingTimeInterval(-20 * 86_400), exerciseNames: ["Deadlift"]),
+        ]
+        let statuses = Recovery.statuses(for: sessions, now: now)
+        #expect(statuses.map(\.muscle) == [.core])
+        #expect(statuses.first?.isReady == true)
+        #expect(Recovery.summary(for: statuses) == "All recovered")
+    }
+
+    @Test func summaryListsReadyMuscles() {
+        let statuses = [
+            Recovery.Status(muscle: .chest, lastTrained: now, progress: 0.3, remaining: 3600),
+            Recovery.Status(muscle: .back, lastTrained: now, progress: 1, remaining: 0),
+            Recovery.Status(muscle: .legs, lastTrained: now, progress: 1, remaining: 0),
+        ]
+        #expect(Recovery.summary(for: statuses) == "Back and legs ready")
+        #expect(Recovery.summary(for: []) == "")
+    }
+}
+
+struct DayTimelineTests {
+    private let base = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func item(_ id: String, _ kind: TimelineItem.Kind, minutes: Double?, duration: Double? = nil) -> TimelineItem {
+        let start = minutes.map { base.addingTimeInterval($0 * 60) }
+        let end = start.flatMap { start in duration.map { start.addingTimeInterval($0 * 60) } }
+        return TimelineItem(id: id, kind: kind, start: start, end: end, title: id, detail: "")
+    }
+
+    @Test func sortsByTimeAndPutsPlannedLast() {
+        let entries = DayTimeline.entries(for: [
+            item("planned", .planned, minutes: nil),
+            item("lunch", .meal, minutes: 300),
+            item("breakfast", .meal, minutes: 0),
+        ], minimumGap: .infinity)
+        #expect(entries.map(\.id) == ["breakfast", "lunch", "planned"])
+    }
+
+    @Test func gapsMeasureFromTheEndOfAWorkout() {
+        let entries = DayTimeline.entries(for: [
+            item("breakfast", .meal, minutes: 0),
+            item("push", .workout, minutes: 280, duration: 52),
+            item("lunch", .meal, minutes: 382),
+        ])
+        let gaps: [String] = entries.compactMap { entry in
+            if case .gap(_, let text) = entry { return text }
+            return nil
+        }
+        #expect(gaps == ["4h 40m before training", "50 min after training"])
+    }
+
+    @Test func shortGapsAreHidden() {
+        let entries = DayTimeline.entries(for: [
+            item("snack", .meal, minutes: 0),
+            item("weigh", .weighIn, minutes: 10),
+        ])
+        #expect(entries.count == 2)
+    }
+
+    @Test func mealsAreGroupedWithTotals() {
+        let items = DayTimeline.mealItems(from: [
+            .init(name: "Banana", meal: "Breakfast", date: base.addingTimeInterval(600), calories: 300, protein: 20),
+            .init(name: "Oats", meal: "Breakfast", date: base, calories: 220, protein: 12),
+            .init(name: "Burrito", meal: "Lunch", date: base.addingTimeInterval(18_000), calories: 680, protein: 48),
+        ])
+        let breakfast = items.first { $0.title == "Breakfast" }
+        #expect(items.count == 2)
+        #expect(breakfast?.start == base)
+        #expect(breakfast?.detail == "Oats, Banana · 520 kcal · 32 g protein")
+        #expect(DayTimeline.foodList(["A", "B", "C", "D"]) == "A, B +2")
+    }
+
+    @Test func durationText() {
+        #expect(DayTimeline.durationText(50 * 60) == "50 min")
+        #expect(DayTimeline.durationText(2 * 3600) == "2h")
+        #expect(DayTimeline.durationText(280 * 60) == "4h 40m")
     }
 }

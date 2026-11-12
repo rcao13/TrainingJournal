@@ -8,11 +8,20 @@ struct PlanDetailView: View {
 
     @State private var isAddingWorkout = false
     @State private var newWorkoutName = ""
+    /// The name can only be changed while editing, so it isn't renamed by a stray tap.
+    @State private var editMode: EditMode = .inactive
+    @FocusState private var isNameFocused: Bool
+
+    private var isEditing: Bool { editMode.isEditing }
 
     var body: some View {
         List {
-            Section("Plan Name") {
-                TextField("Plan name", text: $plan.name)
+            if isEditing {
+                Section("Plan Name") {
+                    TextField("Plan name", text: $plan.name)
+                        .focused($isNameFocused)
+                        .submitLabel(.done)
+                }
             }
 
             Section("Workouts") {
@@ -29,10 +38,14 @@ struct PlanDetailView: View {
                 }
             }
         }
+        .environment(\.editMode, $editMode)
         .themedBackground()
         .navigationTitle(plan.name)
         .toolbar {
-            EditButton()
+            Button(isEditing ? "Done" : "Edit") {
+                toggleEditing()
+            }
+            .fontWeight(isEditing ? .semibold : .regular)
         }
         .alert("New Workout", isPresented: $isAddingWorkout) {
             TextField("e.g. Push Day", text: $newWorkoutName)
@@ -42,6 +55,19 @@ struct PlanDetailView: View {
             Button("Add") {
                 addWorkout()
             }
+        }
+    }
+
+    private func toggleEditing() {
+        if isEditing {
+            isNameFocused = false
+            // Don't leave a plan without a name.
+            if plan.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                plan.name = "New Plan"
+            }
+        }
+        withAnimation {
+            editMode = isEditing ? .inactive : .active
         }
     }
 

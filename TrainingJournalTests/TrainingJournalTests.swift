@@ -77,7 +77,7 @@ struct WorkoutSessionTests {
         context.insert(plan)
         let workout = Workout(name: "Push", order: 0)
         plan.workouts.append(workout)
-        let bench = Exercise(name: "Bench Press", order: 0, restSeconds: 120)
+        let bench = Exercise(name: "Bench Press", order: 0, restOverride: 120)
         workout.exercises.append(bench)
         bench.sets = (0..<3).map { ExerciseSet(order: $0, weight: 135, reps: 8, targetReps: 8) }
         return workout
@@ -91,6 +91,7 @@ struct WorkoutSessionTests {
         #expect(log.endDate == nil)
         let bench = try #require(log.sortedExercises.first)
         #expect(bench.restSeconds == 120)
+        #expect(bench.isRestCustom)
         #expect(bench.sortedSets.map(\.weight) == [135, 135, 135])
         // Never performed yet, so there's no "Last: …" to show.
         #expect(bench.sortedSets.allSatisfy { $0.previousWeight == nil })
@@ -128,6 +129,7 @@ struct WorkoutSessionTests {
         bench.sets.append(LoggedSet(order: 6, weight: 150, reps: 5, targetReps: 8))
         bench.sortedSets.first?.isWarmup = true
         bench.restSeconds = 150
+        bench.isRestCustom = true
         for set in bench.sets { set.isCompleted = true }
 
         WorkoutSession.finish(log)
@@ -137,9 +139,46 @@ struct WorkoutSessionTests {
         #expect(planned.sortedSets.map(\.weight) == [135, 135, 145, 150])
         #expect(planned.sortedSets.map(\.reps) == [8, 8, 6, 5])
         #expect(planned.sortedSets.first?.isWarmup == true)
-        #expect(planned.restSeconds == 150)
+        #expect(planned.restOverride == 150)
         #expect(workout.lastCompleted != nil)
         #expect(log.isFinished)
+    }
+
+    @Test func restsFollowTheDefaultUnlessCustomised() throws {
+        let context = try makeContext()
+        let workout = makeWorkout(in: context)
+        let squat = Exercise(name: "Back Squat", order: 1)
+        squat.sets = [ExerciseSet(order: 0, weight: 225, reps: 5, targetReps: 5)]
+        workout.exercises.append(squat)
+
+        let log = WorkoutSession.start(workout, in: context, defaultRest: 75)
+        let loggedSquat = try #require(log.sortedExercises.last)
+        let loggedBench = try #require(log.sortedExercises.first)
+        #expect(loggedSquat.effectiveRest(default: 75) == 75)
+        #expect(!loggedSquat.isRestCustom)
+        // A later change to the default applies to exercises without a custom rest...
+        #expect(loggedSquat.effectiveRest(default: 120) == 120)
+        // ...but not to ones the user customised.
+        #expect(loggedBench.effectiveRest(default: 120) == 120)
+        #expect(loggedBench.effectiveRest(default: 30) == 120)
+
+        log.exercises.flatMap(\.sets).forEach { $0.isCompleted = true }
+        WorkoutSession.finish(log)
+        // Finishing doesn't turn a default rest into a custom one.
+        #expect(squat.restOverride == nil)
+        #expect(workout.sortedExercises.first?.restOverride == 120)
+    }
+
+    @Test func resettingToDefaultClearsTheCustomRest() throws {
+        let context = try makeContext()
+        let workout = makeWorkout(in: context)
+        let log = WorkoutSession.start(workout, in: context, defaultRest: 90)
+        let bench = try #require(log.sortedExercises.first)
+        bench.isRestCustom = false
+        bench.restSeconds = 90
+        bench.sets.forEach { $0.isCompleted = true }
+        WorkoutSession.finish(log)
+        #expect(workout.sortedExercises.first?.restOverride == nil)
     }
 
     @Test func finishDropsUncheckedSetsFromLog() throws {
@@ -186,6 +225,7 @@ struct RecoveryTests {
         // Keyword fallbacks for names that aren't in the catalog.
         #expect(Recovery.muscle(for: "Seated Leg Curl") == .legs)
         #expect(Recovery.muscle(for: "Cable Lateral Raise") == .shoulders)
+        #expect(Recovery.muscle(for: "Cable Y Raise") == .shoulders)
         #expect(Recovery.muscle(for: "Rope Tricep Extension") == .arms)
         #expect(Recovery.muscle(for: "T-Bar Row") == .back)
         #expect(Recovery.muscle(for: "Mystery Machine") == nil)
@@ -214,6 +254,26 @@ struct RecoveryTests {
         #expect(statuses.map(\.muscle) == [.core])
         #expect(statuses.first?.isReady == true)
         #expect(Recovery.summary(for: statuses) == "All recovered")
+    }
+
+    @Test func chosenMuscleGroupsOverrideNameGuessing() {
+        // Nothing stored (older exercises) falls back to the name.
+        #expect(ExerciseCatalog.muscle(fromStored: nil, name: "Bench Press") == .chest)
+        // An explicit choice wins, even if the name suggests something else.
+        #expect(ExerciseCatalog.muscle(fromStored: "Legs", name: "Bench Press") == .legs)
+        // An explicit "Other" stays unassigned instead of being guessed.
+        #expect(ExerciseCatalog.muscle(fromStored: ExerciseCatalog.storedValue(for: nil), name: "Bench Press") == nil)
+
+        let sessions = [Recovery.Session(date: now.addingTimeInterval(-3600), muscles: [.legs])]
+        #expect(Recovery.statuses(for: sessions, now: now).map(\.muscle) == [.legs])
+    }
+
+    @Test func catalogNamesAreUnique() {
+        let names = ExerciseCatalog.entries.map { $0.name.lowercased() }
+        #expect(Set(names).count == names.count)
+        for muscle in ExerciseCatalog.Muscle.allCases {
+            #expect(ExerciseCatalog.entries.filter { $0.muscle == muscle }.count >= 15)
+        }
     }
 
     @Test func summaryListsReadyMuscles() {

@@ -6,10 +6,20 @@ import Foundation
 nonisolated enum Recovery {
     typealias Muscle = ExerciseCatalog.Muscle
 
-    /// A finished workout: when it ended and which exercises had completed working sets.
+    /// A finished workout: when it ended and which muscle groups had completed working sets.
     struct Session: Sendable {
         var date: Date
-        var exerciseNames: [String]
+        var muscles: [Muscle]
+
+        init(date: Date, muscles: [Muscle]) {
+            self.date = date
+            self.muscles = muscles
+        }
+
+        /// Infers muscle groups from exercise names, skipping names it can't place.
+        init(date: Date, exerciseNames: [String]) {
+            self.init(date: date, muscles: exerciseNames.compactMap(Recovery.muscle(for:)))
+        }
     }
 
     struct Status: Identifiable, Equatable, Sendable {
@@ -57,7 +67,7 @@ nonisolated enum Recovery {
     private static let keywordTable: [(Muscle, [String])] = [
         (.legs, ["squat", "leg", "lunge", "calf", "calves", "glute", "hamstring", "quad", "hip thrust", "romanian", "rdl", "step up"]),
         (.arms, ["curl", "tricep", "bicep", "skull", "pushdown", "extension"]),
-        (.shoulders, ["shoulder", "overhead", "lateral", "delt", "shrug", "military", "arnold", "rear", "reverse fly", "face pull"]),
+        (.shoulders, ["shoulder", "overhead", "lateral", "delt", "shrug", "military", "arnold", "rear", "reverse fly", "face pull", "y raise", "front raise"]),
         (.chest, ["bench", "chest", "fly", "flye", "pec", "push up", "pushup", "dip"]),
         (.back, ["row", "pull", "deadlift", "lat", "chin", "back"]),
         (.core, ["plank", "crunch", "abs", "ab wheel", "core", "sit up", "situp", "oblique"]),
@@ -67,8 +77,7 @@ nonisolated enum Recovery {
     static func statuses(for sessions: [Session], now: Date = .now, lookback: TimeInterval = 14 * 86_400) -> [Status] {
         var lastTrained: [Muscle: Date] = [:]
         for session in sessions where session.date <= now && now.timeIntervalSince(session.date) <= lookback {
-            for name in session.exerciseNames {
-                guard let muscle = muscle(for: name) else { continue }
+            for muscle in session.muscles {
                 if let existing = lastTrained[muscle], existing >= session.date { continue }
                 lastTrained[muscle] = session.date
             }

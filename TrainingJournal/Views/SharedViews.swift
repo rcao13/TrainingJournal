@@ -79,6 +79,31 @@ struct RestPicker: View {
     }
 }
 
+/// Rest picker for one exercise. "Default" follows the rest in Settings (so it changes when
+/// that does); any specific time makes the exercise's rest custom.
+struct ExerciseRestPicker: View {
+    var title = "Rest"
+    /// Nil means "use the default".
+    @Binding var override: Int?
+    let defaultSeconds: Int
+
+    private static let options = Array(stride(from: 15, through: 600, by: 15))
+
+    var body: some View {
+        Picker(selection: $override) {
+            Text("Default (\(defaultSeconds.restFormatted))").tag(Int?.none)
+            if let override, !Self.options.contains(override) {
+                Text(override.restFormatted).tag(Optional(override))
+            }
+            ForEach(Self.options, id: \.self) { option in
+                Text(option.restFormatted).tag(Optional(option))
+            }
+        } label: {
+            Label(title, systemImage: "timer")
+        }
+    }
+}
+
 /// A large, easy-to-hit numeric field used for weight and reps during a workout.
 struct CompactNumberField: View {
     let placeholder: String

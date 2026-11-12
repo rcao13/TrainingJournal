@@ -12,6 +12,7 @@ struct ActiveWorkoutView: View {
     @Environment(RestTimer.self) private var restTimer
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
     @AppStorage(SettingsKey.weightIncrement) private var weightIncrement = 5.0
+    @AppStorage(SettingsKey.defaultRestSeconds) private var defaultRestSeconds = RestDefaults.fallbackSeconds
 
     @Query(filter: #Predicate<WorkoutLog> { $0.endDate != nil }, sort: \WorkoutLog.startDate, order: .reverse)
     private var finishedLogs: [WorkoutLog]
@@ -67,6 +68,7 @@ struct ActiveWorkoutView: View {
                     currentSetID: current?.set.persistentModelID,
                     weightUnit: weightUnit,
                     weightIncrement: weightIncrement,
+                    defaultRestSeconds: defaultRestSeconds,
                     suggestion: suggestion(for: exercise),
                     onToggle: { set in toggle(set, in: exercise) },
                     onRestChanged: { seconds in restChanged(for: exercise, to: seconds) }
@@ -137,8 +139,8 @@ struct ActiveWorkoutView: View {
         }
         .keyboardDoneButton()
         .sheet(isPresented: $isAddingExercise) {
-            ExercisePickerView { name, rest in
-                addExercise(named: name, restSeconds: rest)
+            ExercisePickerView { name, muscle in
+                addExercise(named: name, muscle: muscle)
             }
         }
     }
@@ -147,7 +149,11 @@ struct ActiveWorkoutView: View {
     private var bottomBar: some View {
         VStack(spacing: 10) {
             RestTimerBar { exerciseName, seconds in
-                log.exercises.first { $0.name == exerciseName }?.restSeconds = seconds
+                // Adjusting a running rest counts as choosing a custom rest for that exercise.
+                if let exercise = log.exercises.first(where: { $0.name == exerciseName }) {
+                    exercise.restSeconds = seconds
+                    exercise.isRestCustom = true
+                }
             }
             if let current {
                 Button("Complete Set") {
@@ -207,11 +213,12 @@ struct ActiveWorkoutView: View {
             workoutName: log.workoutName,
             exerciseName: exercise.name,
             setLabel: label,
-            goalSeconds: exercise.restSeconds
+            goalSeconds: exercise.effectiveRest(default: defaultRestSeconds)
         )
     }
 
     private func restChanged(for exercise: LoggedExercise, to seconds: Int) {
+        // `seconds` is already the effective rest (custom or default).
         // Apply to the running rest if it belongs to this exercise.
         if restTimer.state?.exerciseName == exercise.name {
             restTimer.setGoal(seconds: seconds)
@@ -228,9 +235,12 @@ struct ActiveWorkoutView: View {
         return below ? suggested : nil
     }
 
-    private func addExercise(named name: String, restSeconds: Int) {
+    private func addExercise(named name: String, muscle: ExerciseCatalog.Muscle?) {
         let nextOrder = (log.exercises.map(\.order).max() ?? -1) + 1
-        let exercise = LoggedExercise(name: name, order: nextOrder, restSeconds: restSeconds)
+        let exercise = LoggedExercise(
+            name: name, order: nextOrder, restSeconds: defaultRestSeconds,
+            muscleRawValue: ExerciseCatalog.storedValue(for: muscle)
+        )
         log.exercises.append(exercise)
         // Pre-fill from the most recent time this exercise was logged, if any.
         let previous = WorkoutSession.history(named: name, in: finishedLogs, excluding: log).first?.exercise.sortedSets ?? []
@@ -324,6 +334,7 @@ private struct ExerciseSessionSection: View {
     let currentSetID: PersistentIdentifier?
     let weightUnit: String
     let weightIncrement: Double
+    let defaultRestSeconds: Int
     let suggestion: Double?
     let onToggle: (LoggedSet) -> Void
     let onRestChanged: (Int) -> Void
@@ -392,6 +403,10 @@ private struct ExerciseSessionSection: View {
         }
     }
 
+    private var restText: String {
+        exercise.effectiveRest(default: defaultRestSeconds).restFormatted
+    }
+
     private var header: some View {
         HStack(spacing: 10) {
             Text(exercise.name)
@@ -399,18 +414,22 @@ private struct ExerciseSessionSection: View {
                 .foregroundStyle(Theme.ink)
             Spacer()
             Menu {
-                RestPicker(seconds: Binding(
-                    get: { exercise.restSeconds },
-                    set: { newValue in
-                        exercise.restSeconds = newValue
-                        onRestChanged(newValue)
-                    }
-                ))
+                ExerciseRestPicker(
+                    override: Binding(
+                        get: { exercise.isRestCustom ? exercise.restSeconds : nil },
+                        set: { newValue in
+                            exercise.isRestCustom = newValue != nil
+                            exercise.restSeconds = newValue ?? defaultRestSeconds
+                            onRestChanged(exercise.effectiveRest(default: defaultRestSeconds))
+                        }
+                    ),
+                    defaultSeconds: defaultRestSeconds
+                )
                 .pickerStyle(.inline)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "timer")
-                    Text(exercise.restSeconds.restFormatted)
+                    Text(restText)
                 }
                 .font(.footnote.weight(.medium).monospacedDigit())
                 .foregroundStyle(Theme.secondary)
@@ -418,7 +437,7 @@ private struct ExerciseSessionSection: View {
                 .padding(.vertical, 5)
                 .background(Theme.track, in: .capsule)
             }
-            .accessibilityLabel("Rest \(exercise.restSeconds.restFormatted)")
+            .accessibilityLabel("Rest \(restText)")
             Button("Notes", systemImage: exercise.notes.isEmpty ? "note.text.badge.plus" : "note.text") {
                 isEditingNotes.toggle()
             }

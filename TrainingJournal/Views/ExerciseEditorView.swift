@@ -5,6 +5,7 @@ import SwiftData
 struct ExerciseEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
+    @AppStorage(SettingsKey.defaultRestSeconds) private var defaultRestSeconds = RestDefaults.fallbackSeconds
     @Bindable var exercise: Exercise
 
     var body: some View {
@@ -14,7 +15,16 @@ struct ExerciseEditorView: View {
         List {
             Section {
                 TextField("Exercise name", text: $exercise.name)
-                RestPicker(title: "Rest between sets", seconds: $exercise.restSeconds)
+                Picker("Muscle group", selection: Binding(
+                    get: { exercise.muscle },
+                    set: { exercise.muscle = $0 }
+                )) {
+                    ForEach(ExerciseCatalog.Muscle.allCases) { muscle in
+                        Text(muscle.rawValue).tag(Optional(muscle))
+                    }
+                    Text("Other").tag(ExerciseCatalog.Muscle?.none)
+                }
+                ExerciseRestPicker(title: "Rest between sets", override: $exercise.restOverride, defaultSeconds: defaultRestSeconds)
                 TextField("Notes (seat height, grip…)", text: $exercise.notes, axis: .vertical)
                     .lineLimit(1...4)
             }

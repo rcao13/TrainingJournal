@@ -54,9 +54,15 @@ final class Workout {
 final class Exercise {
     var name: String
     var order: Int
-    /// Rest goal between sets, in seconds.
+    /// Legacy per-exercise rest from before rests followed the Settings default. No longer read.
     var restSeconds: Int = 90
+    /// A rest the user chose for this exercise, in seconds.
+    /// Nil means it follows the default rest in Settings.
+    var restOverride: Int?
     var notes: String = ""
+    /// Raw value of `ExerciseCatalog.Muscle`, chosen in the picker or editor.
+    /// Nil for exercises created before muscle groups existed; those fall back to name matching.
+    var muscleRawValue: String?
     var workout: Workout?
 
     @Relationship(deleteRule: .cascade, inverse: \ExerciseSet.exercise)
@@ -65,14 +71,26 @@ final class Exercise {
     @Relationship(deleteRule: .nullify, inverse: \LoggedExercise.template)
     var loggedExercises: [LoggedExercise] = []
 
-    init(name: String, order: Int, restSeconds: Int = 90) {
+    init(name: String, order: Int, restOverride: Int? = nil) {
         self.name = name
         self.order = order
-        self.restSeconds = restSeconds
+        self.restOverride = restOverride
+    }
+
+    /// The rest to use: the custom one if set, otherwise the default from Settings.
+    func effectiveRest(default defaultSeconds: Int) -> Int {
+        restOverride ?? defaultSeconds
     }
 
     var sortedSets: [ExerciseSet] {
         sets.sorted { $0.order < $1.order }
+    }
+
+    /// The chosen muscle group. Setting nil records an explicit "Other";
+    /// exercises that never had one chosen are inferred from their name.
+    var muscle: ExerciseCatalog.Muscle? {
+        get { ExerciseCatalog.muscle(fromStored: muscleRawValue, name: name) }
+        set { muscleRawValue = ExerciseCatalog.storedValue(for: newValue) }
     }
 }
 

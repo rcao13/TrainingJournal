@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftData
 
 enum Meal: String, CaseIterable, Identifiable {
@@ -65,8 +66,44 @@ enum SettingsKey {
     static let fatGoal = "fatGoal"
     /// How much weight the overload hint suggests adding (5 lb / 2.5 kg by default).
     static let weightIncrement = "weightIncrement"
-    /// Rest goal for new custom exercises, in seconds.
+    /// Rest between sets for every exercise that doesn't have its own, in seconds.
     static let defaultRestSeconds = "defaultRestSeconds"
+    /// Raw value of `AppAppearance`.
+    static let appearance = "appearance"
+}
+
+/// Light, dark, or follow the system setting.
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// Nil lets the app follow the system appearance.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
+/// Reads the default rest outside of SwiftUI views (views use `@AppStorage`).
+enum RestDefaults {
+    static let fallbackSeconds = 90
+
+    static var seconds: Int {
+        let stored = UserDefaults.standard.integer(forKey: SettingsKey.defaultRestSeconds)
+        return stored > 0 ? stored : fallbackSeconds
+    }
 }
 
 extension Double {

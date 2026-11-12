@@ -4,6 +4,7 @@ import UserNotifications
 
 @main struct MyApp: App {
     @State private var restTimer = RestTimer()
+    @AppStorage(SettingsKey.appearance) private var appearance = AppAppearance.system
 
     /// Held strongly because the notification center only keeps a weak reference.
     private let notificationDelegate = NotificationDelegate()
@@ -16,8 +17,10 @@ import UserNotifications
         WindowGroup {
             ContentView()
                 .environment(restTimer)
-                // Apply the orange accent from the asset catalog app-wide.
+                // Apply the accent (navy in light, periwinkle in dark) app-wide.
                 .tint(Color("AccentColor"))
+                // Applies to the whole window, so sheets and the live workout follow it too.
+                .preferredColorScheme(appearance.colorScheme)
         }
         // Related models (Workout, Exercise, ExerciseSet, LoggedExercise, LoggedSet)
         // are discovered through relationships.

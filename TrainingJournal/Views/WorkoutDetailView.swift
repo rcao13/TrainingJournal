@@ -5,12 +5,18 @@ import SwiftData
 struct WorkoutDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(SettingsKey.weightUnit) private var weightUnit = "lb"
+    @AppStorage(SettingsKey.defaultRestSeconds) private var defaultRestSeconds = RestDefaults.fallbackSeconds
     @Bindable var workout: Workout
 
     @Query(filter: #Predicate<WorkoutLog> { $0.endDate == nil })
     private var activeLogs: [WorkoutLog]
 
     @State private var isAddingExercise = false
+    /// The name can only be changed while editing, so it isn't renamed by a stray tap.
+    @State private var editMode: EditMode = .inactive
+    @FocusState private var isNameFocused: Bool
+
+    private var isEditing: Bool { editMode.isEditing }
 
     var body: some View {
         List {
@@ -37,8 +43,12 @@ struct WorkoutDetailView: View {
                 }
             }
 
-            Section("Name") {
-                TextField("Workout name", text: $workout.name)
+            if isEditing {
+                Section("Name") {
+                    TextField("Workout name", text: $workout.name)
+                        .focused($isNameFocused)
+                        .submitLabel(.done)
+                }
             }
 
             Section("Days") {
@@ -62,7 +72,7 @@ struct WorkoutDetailView: View {
                             Text(setsSummary(for: exercise))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Label(exercise.restSeconds.restFormatted, systemImage: "timer")
+                            Label(restText(for: exercise), systemImage: "timer")
                                 .font(.caption)
                                 .foregroundStyle(.tint)
                         }
@@ -76,15 +86,32 @@ struct WorkoutDetailView: View {
                 }
             }
         }
+        .environment(\.editMode, $editMode)
         .themedBackground()
         .navigationTitle(workout.name)
         .toolbar {
-            EditButton()
+            Button(isEditing ? "Done" : "Edit") {
+                toggleEditing()
+            }
+            .fontWeight(isEditing ? .semibold : .regular)
         }
         .sheet(isPresented: $isAddingExercise) {
-            ExercisePickerView { name, rest in
-                addExercise(named: name, restSeconds: rest)
+            ExercisePickerView { name, muscle in
+                addExercise(named: name, muscle: muscle)
             }
+        }
+    }
+
+    private func toggleEditing() {
+        if isEditing {
+            isNameFocused = false
+            // Don't leave a workout without a name.
+            if workout.name.trimmingCharacters(in: .whitespaces).isEmpty {
+                workout.name = "New Workout"
+            }
+        }
+        withAnimation {
+            editMode = isEditing ? .inactive : .active
         }
     }
 
@@ -93,7 +120,7 @@ struct WorkoutDetailView: View {
             await RestTimer.requestNotificationPermission()
         }
         // ContentView presents the live workout as soon as the in-progress log appears.
-        WorkoutSession.start(workout, in: modelContext)
+        WorkoutSession.start(workout, in: modelContext, defaultRest: defaultRestSeconds)
     }
 
     private func setsSummary(for exercise: Exercise) -> String {
@@ -109,9 +136,16 @@ struct WorkoutDetailView: View {
         return text
     }
 
-    private func addExercise(named name: String, restSeconds: Int) {
+    /// "1:30" for the default rest, "2:30 · custom" for one the user set.
+    private func restText(for exercise: Exercise) -> String {
+        let rest = exercise.effectiveRest(default: defaultRestSeconds).restFormatted
+        return exercise.restOverride == nil ? rest : "\(rest) · custom"
+    }
+
+    private func addExercise(named name: String, muscle: ExerciseCatalog.Muscle?) {
         let nextOrder = (workout.exercises.map(\.order).max() ?? -1) + 1
-        let exercise = Exercise(name: name, order: nextOrder, restSeconds: restSeconds)
+        let exercise = Exercise(name: name, order: nextOrder)
+        exercise.muscle = muscle
         // Start with three sets so the exercise is immediately usable.
         exercise.sets = (0..<3).map { ExerciseSet(order: $0) }
         workout.exercises.append(exercise)

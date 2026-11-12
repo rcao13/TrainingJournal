@@ -45,7 +45,11 @@ final class LoggedExercise {
     var name: String
     var order: Int
     var restSeconds: Int
+    /// True when this exercise uses a rest the user chose rather than the Settings default.
+    var isRestCustom: Bool = false
     var notes: String = ""
+    /// Raw value of `ExerciseCatalog.Muscle`, copied from the plan when the session starts.
+    var muscleRawValue: String?
     var log: WorkoutLog?
     /// The planned exercise this came from, used to write results back on finish.
     var template: Exercise?
@@ -53,12 +57,25 @@ final class LoggedExercise {
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.exercise)
     var sets: [LoggedSet] = []
 
-    init(name: String, order: Int, restSeconds: Int, notes: String = "", template: Exercise? = nil) {
+    init(name: String, order: Int, restSeconds: Int, isRestCustom: Bool = false, notes: String = "",
+         muscleRawValue: String? = nil, template: Exercise? = nil) {
         self.name = name
         self.order = order
         self.restSeconds = restSeconds
+        self.isRestCustom = isRestCustom
         self.notes = notes
+        self.muscleRawValue = muscleRawValue
         self.template = template
+    }
+
+    /// The rest to use now: the custom one, or the current Settings default.
+    func effectiveRest(default defaultSeconds: Int) -> Int {
+        isRestCustom ? restSeconds : defaultSeconds
+    }
+
+    /// The recorded muscle group (nil for "Other"), or one inferred from the name.
+    var muscle: ExerciseCatalog.Muscle? {
+        ExerciseCatalog.muscle(fromStored: muscleRawValue, name: name)
     }
 
     var sortedSets: [LoggedSet] {

@@ -63,9 +63,10 @@ struct TodayView: View {
         let sessions = logs.filter(\.isFinished).map { log in
             Recovery.Session(
                 date: log.endDate ?? log.startDate,
-                exerciseNames: log.exercises
+                // Uses the muscle group chosen for each exercise, falling back to its name.
+                muscles: log.exercises
                     .filter { exercise in exercise.sets.contains { $0.isCompleted && !$0.isWarmup } }
-                    .map(\.name)
+                    .compactMap(\.muscle)
             )
         }
         return Recovery.statuses(for: sessions)

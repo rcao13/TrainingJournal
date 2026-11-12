@@ -5,15 +5,17 @@ import SwiftData
 enum WorkoutSession {
     /// Creates an in-progress log pre-filled with the plan's last-used values.
     @discardableResult
-    static func start(_ workout: Workout, in context: ModelContext) -> WorkoutLog {
+    static func start(_ workout: Workout, in context: ModelContext, defaultRest: Int = RestDefaults.seconds) -> WorkoutLog {
         let log = WorkoutLog(workoutName: workout.name, workout: workout)
         context.insert(log)
         for exercise in workout.sortedExercises {
             let logged = LoggedExercise(
                 name: exercise.name,
                 order: exercise.order,
-                restSeconds: exercise.restSeconds,
+                restSeconds: exercise.effectiveRest(default: defaultRest),
+                isRestCustom: exercise.restOverride != nil,
                 notes: exercise.notes,
+                muscleRawValue: exercise.muscleRawValue,
                 template: exercise
             )
             log.exercises.append(logged)
@@ -70,7 +72,8 @@ enum WorkoutSession {
     /// Makes the planned exercise match the session: same number of sets, and the
     /// weights, reps, warm-up flags, rest, and notes that were just used.
     static func writeBack(_ logged: LoggedExercise, to template: Exercise) {
-        template.restSeconds = logged.restSeconds
+        // Only rests the user changed become custom; the rest keep following the default.
+        template.restOverride = logged.isRestCustom ? logged.restSeconds : nil
         template.notes = logged.notes
 
         let loggedSets = logged.sortedSets
